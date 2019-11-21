@@ -76,7 +76,7 @@ def get_data(link):
     return temp_df
 
 
-jobs = ['Data Analysis', 'Web Development', 'UX/UI']
+jobs = ['Data Analysis', 'Data Analyst', 'Developer', 'Software Engineer', 'UX', 'Product Designer', 'UX/UI']
 for job in jobs:
     driver.get('https://www.indeed.com')
     # Deleting anything that might be there in the cell and input new values for Job Type
