@@ -1,14 +1,22 @@
 from selenium import webdriver
+from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.keys import Keys
 import requests
+import re
 from bs4 import BeautifulSoup
 import pandas as pd
+import openpyxl
 pd.set_option('display.max_columns', None)
 import numpy as np
 from datetime import date, datetime
 import time
+import os
 # driver = webdriver.Chrome(executable_path='/Users/himanshuaggarwal/PycharmProjects/webscraping/chromedriver')
 driver = webdriver.Firefox(executable_path='/Users/himanshuaggarwal/PycharmProjects/webscraping/geckodriver')
+files = os.listdir()
+for file in files:
+    if 'Results for UX' in file or 'Results for Data' in file or 'Results for Web Devs' in file:
+        os.remove(file)
 # job_filter = input('enter the job type filter')
 # flag = True
 # while flag:
@@ -29,6 +37,8 @@ def get_data(link):
         if driver.find_elements_by_class_name('popover-foreground') is not None:
             if len(driver.find_elements_by_class_name('popover-foreground')) > 0:
                 driver.find_elements_by_id('popover-link-x')[0].click()
+    except:
+        pass
     finally:
         html = requests.get(link).content
         soup = BeautifulSoup(html, 'html.parser')
@@ -39,8 +49,10 @@ def get_data(link):
         summary = []
         salary_snippet = []
         day_posted = []
+        job_posting_link = []
         for posting in jobpostings:
-            if posting.find('div', {'class': 'title'}) is not None:
+            temp = posting.find('a', {'class': 'jobtitle turnstileLink'})['href']
+            if posting.find('div', {'class': 'title'}) is not None and len(re.findall('jk.*', temp)) > 0:
                 title.append(posting.find('div', {'class': 'title'}).text.strip())
                 if posting.find('div', {'class': 'sjcl'}) is not None:
                     temp = posting.find('div', {'class': 'sjcl'}).text.strip().split('\n')
@@ -53,6 +65,15 @@ def get_data(link):
                 else:
                     company.append('NA')
                     location.append('NA')
+                if posting.find('a', {'class':'jobtitle turnstileLink'}) is not None:
+                    temp = posting.find('a', {'class':'jobtitle turnstileLink'})['href']
+                    try:
+                        temp = 'https://www.indeed.com/viewjob?' + re.findall('jk.*', temp)[0]
+                        job_posting_link.append(temp)
+                    except:
+                        pass
+                else:
+                    job_posting_link.append('NA')
                 if posting.find('div', {'class': 'summary'}) is not None:
                     summary.append(posting.find('div', {'class': 'summary'}).text.strip())
                 else:
@@ -73,6 +94,7 @@ def get_data(link):
         temp_df['Summary'] = summary
         temp_df['Location'] = location
         temp_df['DayPosted'] = day_posted
+        temp_df['JobPostingLink'] = job_posting_link
     return temp_df
 
 
@@ -100,23 +122,46 @@ for job in jobs:
     driver.find_element_by_id('text-input-where').send_keys(Keys.COMMAND + "a")
     driver.find_element_by_id('text-input-where').send_keys(Keys.DELETE)
     driver.find_elements_by_id('text-input-where')[0].send_keys('Miami, FL')
-    # time.sleep(3)
+    time.sleep(3)
     # Since the clicks was not working. We used the return key in the same cell
     # driver.find_elements_by_class_name('icl-WhatWhere-buttonWrapper')[0].click()
     driver.find_elements_by_id('text-input-where')[0].send_keys(Keys.RETURN)
-    data = pd.DataFrame(columns=['Title', 'Company', 'Summary', 'Location', 'DayPosted'])
-    # time.sleep(3)
+    time.sleep(3)
+    driver.find_elements_by_partial_link_text('Advanced Job Search')[0].click()
+    select = Select(driver.find_element_by_id('radius'))
+    # select by visible text
+    # select.select_by_visible_text('within 50 miles of')
+    # select by value
+    select.select_by_value('50')
+    select = Select(driver.find_element_by_id('fromage'))
+    select.select_by_value('7')
+    select = Select(driver.find_element_by_id('limit'))
+    select.select_by_value('50')
+    time.sleep(2)
+    driver.find_element_by_id('fj').click()
+
+    data = pd.DataFrame(columns=['Title', 'Company', 'Summary', 'Location', 'DayPosted', 'JobPostingLink'])
+    time.sleep(3)
     try:
         if driver.find_elements_by_class_name('popover-foreground') is not None:
             if len(driver.find_elements_by_class_name('popover-foreground')) > 0:
                 driver.find_elements_by_id('popover-link-x')[0].click()
                 print('PopOver Eliminated')
+                time.sleep(4)
     finally:
         print('Starting Scraping')
 
     FLAG = True
     counter = 1
     while FLAG:
+        try:
+            if driver.find_elements_by_class_name('popover-foreground') is not None:
+                if len(driver.find_elements_by_class_name('popover-foreground')) > 0:
+                    driver.find_elements_by_id('popover-link-x')[0].click()
+                    print('PopOver Eliminated')
+                    time.sleep(4)
+        except:
+            pass
         if driver.current_url is not None:
             print(driver.current_url)
             print(counter)
@@ -128,13 +173,13 @@ for job in jobs:
             try:
                 time.sleep(3)
                 driver.find_element_by_class_name('pn').click()
-            except KeyError:
+            except:
                 print('Next page was not found or click did not word')
                 FLAG = False
         else:
             FLAG = False
             print('Exit - url not found')
-        if data.shape[0] > 100:
+        if data.shape[0] > 150:
             FLAG = False
             print('Exit - Got 100 rows')
 
@@ -142,11 +187,24 @@ for job in jobs:
     data['Date'] = date.today()
     data['Date & Time'] = datetime.now()
     data['DayPosted'] = list(map(lambda x: x[0:11], data['DayPosted']))
+    data = data.reset_index()
     print(data)
     # Saving to a csv file
-    if 'UX' in job:
-        data.to_csv('Results for UX')
-    else:
-        data.to_csv('Results for' + job)
+
+    if 'ux' in job.lower():
+        if '/' in job:
+            data.to_excel('Results for UXUI.xlsx', sheet_name='Sheet')
+        else:
+            data.to_excel('Results for UX.xlsx', sheet_name=job)
+    elif 'designer' in job.lower():
+        data.to_excel('Results for Product Designer.xlsx', sheet_name=job)
+    elif 'analysis' in job.lower():
+        data.to_excel('Results for Data Analysis.xlsx', sheet_name=job)
+    elif 'analyst' in job.lower():
+        data.to_excel('Results for Data Analyst.xlsx', sheet_name=job)
+    elif 'developer' in job.lower():
+        data.to_excel('Results for Web Developers.xlsx', sheet_name=job)
+    elif 'software' in job.lower():
+        data.to_excel('Results for Software Engineer.xlsx', sheet_name=job)
 
 
