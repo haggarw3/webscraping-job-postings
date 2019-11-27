@@ -5,6 +5,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 import pandas as pd
+import xlrd
 import openpyxl
 pd.set_option('display.max_columns', None)
 import numpy as np
@@ -207,4 +208,29 @@ for job in jobs:
     elif 'software' in job.lower():
         data.to_excel('Results for Software Engineer.xlsx', sheet_name=job)
 
+df1 = pd.read_excel('Results for Data Analysis.xlsx')
+df2 = pd.read_excel('Results for Data Analyst.xlsx')
+df = pd.concat([df1, df2], axis=0)
+df = df.drop_duplicates().reset_index()
+cols = list(df.columns)
+index = cols.index('index')
+for i in range(index):
+    df = df.drop(cols[i], axis=1)
+df = df.drop('Date', axis=1)
+df.to_excel('DATA_final.xlsx', sheet_name='DataCohortSheet')
 
+df1 = pd.read_excel('Results for UXUI.xlsx')
+df2 = pd.read_excel('Results for UX.xlsx')
+df = pd.concat([df1, df2], axis=0)
+df = df.drop_duplicates().reset_index()
+cols = list(df.columns)
+index = cols.index('index')
+for i in range(index):
+    df = df.drop(cols[i], axis=1)
+df = df.drop('Date', axis=1)
+df.to_excel('UX_final.xlsx', sheet_name='UXCohortSheet')
+
+files = os.listdir()
+for file in files:
+    if 'Results for UX' in file or 'Results for Data' in file:
+        os.remove(file)
